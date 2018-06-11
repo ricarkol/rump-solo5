@@ -6,7 +6,7 @@ all: build
 submodules:
 	git submodule update --init
 
-build: build/ukvm-bin run build/nginx.ukvm
+build: build/ukvm-bin build/nginx.ukvm
 
 SOLO5_OBJ=solo5/kernel/ukvm/solo5.o
 
@@ -45,6 +45,15 @@ build/nginx.ukvm: rumprun-packages/nginx/bin/nginx.ukvm
 
 build/ukvm-bin: solo5/ukvm/ukvm-bin
 	install -m 775 -D solo5/ukvm/ukvm-bin $@
+
+tap:
+	sudo ip tuntap add tap100 mode tap || true
+	sudo ip addr add 10.0.0.1/24 dev tap100 || true
+	sudo ip link set dev tap100 up || true
+
+test_nginx: tap
+	genisoimage -l -r -o data.iso rumprun-packages/nginx/data
+	./build/ukvm-bin --disk=data.iso --net=tap100 build/nginx.ukvm '{"cmdline":"bin/nginx.seccomp -c /data/conf/nginx.conf","net":{"if":"ukvmif0","cloner":"True","type":"inet","method":"static","addr":"10.0.0.2","mask":"16"},"blk":{"source":"etfs","path":"/dev/ld0a","fstype":"blk","mountpoint":"/data"}}'
 
 .PHONY: clean distclean clean_solo5 clean_rump
 clean:
